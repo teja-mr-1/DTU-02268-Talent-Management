@@ -1,0 +1,122 @@
+# Local development stack. Requires Docker Compose 2.23.1+ for inline configs.
+services:
+  applications:
+    image: talent-applications:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.applications
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      CAMUNDA_REST_URL: http://orchestration:8080/v2
+      CAMUNDA_USERNAME: demo
+      CAMUNDA_PASSWORD: demo
+      APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
+      FLINK_LOG_LEVEL: ${FLINK_LOG_LEVEL:-WARN}
+    volumes:
+      - application-checkpoints:/data
+    depends_on:
+      deploy-processes:
+        condition: service_completed_successfully
+    stop_grace_period: 40s
+
+  orchestration:
+    image: camunda/camunda:8.8.43
+    ports:
+      - "127.0.0.1:8088:8080"
+      - "127.0.0.1:26500:26500"
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xms512m -Xmx1024m"
+    configs:
+      - source: orchestration-config
+        target: /usr/local/camunda/config/application.yaml
+    volumes:
+      - camunda-data:/usr/local/camunda/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -ec
+        - |
+          exec 3<>/dev/tcp/127.0.0.1/9600
+          printf 'GET /actuator/health/status HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3
+          IFS= read -r status <&3
+          [[ "$$status" == *" 200 "* ]]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 30s
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.10
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      cluster.routing.allocation.disk.threshold_enabled: "false"
+      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=2s' > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 20s
+
+  # Deploy before accepting applications: missing process definitions would fail the sink.
+  deploy-processes:
+    image: curlimages/curl:8.17.0
+    command:
+      - --fail-with-body
+      - --silent
+      - --show-error
+      - --user
+      - demo:demo
+      - --form
+      - resources=@/models/application-received.bpmn
+      - --form
+      - resources=@/models/scale-up-application-receival.bpmn
+      - http://orchestration:8080/v2/deployments
+    volumes:
+      - ./source/camunda:/models:ro
+    depends_on:
+      orchestration:
+        condition: service_healthy
+    restart: "no"
+
+volumes:
+  application-checkpoints:
+  camunda-data:
+  elasticsearch-data:
+
+configs:
+  orchestration-config:
+    content: |
+      camunda:
+        system:
+          cpu-thread-count: 3
+          io-thread-count: 3
+        security:
+          authentication:
+            method: basic
+            unprotectedApi: false
+          authorizations:
+            enabled: false
+          initialization:
+            users:
+              - username: demo
+                password: demo
+                name: Demo User
+                email: demo@example.com
+            defaultRoles.admin.users:
+              - demo
+        database.index.numberOfReplicas: 0
+        data:
+          secondary-storage:
+            type: elasticsearch
+            elasticsearch:
+              cluster-name: elasticsearch
+              url: http://elasticsearch:9200

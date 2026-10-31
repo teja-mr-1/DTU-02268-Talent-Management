@@ -1,0 +1,13 @@
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /build
+COPY source/flink-app/ .
+COPY source/application-form/ /application-form/
+RUN ./gradlew --no-daemon clean build installDist
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+RUN mkdir -p /data/checkpoints && chown -R 10001:10001 /app /data
+COPY --from=build /build/build/install/applications/ /app/
+ENV CHECKPOINT_DIRECTORY=file:///data/checkpoints
+USER 10001:10001
+EXPOSE 8090
+ENTRYPOINT ["/app/bin/applications"]
