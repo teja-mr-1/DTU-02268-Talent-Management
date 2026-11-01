@@ -1,0 +1,115 @@
+x-dcr-env: &dcr-env
+  DCR_MODE: ${DCR_MODE:-mock}            # mock | real
+  DCR_USERNAME: ${DCR_USERNAME:-}
+  DCR_PASSWORD: ${DCR_PASSWORD:-}
+  DCR_GRAPH_ID: ${DCR_GRAPH_ID:-}
+  DCR_GRAPH_IDS: ${DCR_GRAPH_IDS:-}            # optional per-position graphs, e.g. engineer=123,sales=456
+
+x-flink: &flink
+  build:
+    context: .
+    dockerfile: Dockerfile.flink
+  image: demo-flink:1.20
+  environment: &flink-env
+    <<: *dcr-env
+    KAFKA_BOOTSTRAP: kafka:29092
+    THRESHOLD: ${THRESHOLD:-8}
+    FLINK_PROPERTIES: |
+      jobmanager.rpc.address: jobmanager
+      taskmanager.numberOfTaskSlots: 2
+
+x-tools: &tools
+  build:
+    context: .
+    dockerfile: Dockerfile.tools
+  image: demo-tools
+  environment: *dcr-env
+
+services:
+  kafka:
+    image: apache/kafka:3.8.0
+    ports:
+      - "9092:9092"   # for tools on your host (optional)
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list"]
+      interval: 5s
+      timeout: 10s
+      retries: 20
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka: { condition: service_healthy }
+    restart: "no"
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        for t in applications application-closed case-started alerts; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:29092 \
+            --create --if-not-exists --topic $$t --partitions 1 --replication-factor 1
+        done
+
+  jobmanager:
+    <<: *flink
+    command: jobmanager
+    ports:
+      - "8081:8081"   # Flink web UI
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8081/overview"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  taskmanager:
+    <<: *flink
+    command: taskmanager
+    depends_on:
+      jobmanager: { condition: service_healthy }
+
+  job-submit:
+    <<: *flink
+    command: >
+      flink run -d -m jobmanager:8081
+      -py /opt/app/job.py
+      -pyfs /opt/app/dcr_client.py,/opt/app/routing.py
+    restart: "no"
+    depends_on:
+      jobmanager: { condition: service_healthy }
+      taskmanager: { condition: service_started }
+      kafka-init: { condition: service_completed_successfully }
+
+  case-worker:
+    <<: *tools
+    command: >
+      python case_worker.py --bootstrap kafka:29092
+      --min-seconds ${WORKER_MIN_SECONDS:-2} --max-seconds ${WORKER_MAX_SECONDS:-15}
+    depends_on:
+      job-submit: { condition: service_completed_successfully }
+
+  generator:
+    <<: *tools
+    command: python generator.py --bootstrap kafka:29092 --rate ${GEN_RATE:-2}
+    depends_on:
+      job-submit: { condition: service_completed_successfully }
+      case-worker: { condition: service_started }
+
+  alert-watcher:
+    image: apache/kafka:3.8.0
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:29092 --topic alerts --from-beginning
+    depends_on:
+      kafka-init: { condition: service_completed_successfully }

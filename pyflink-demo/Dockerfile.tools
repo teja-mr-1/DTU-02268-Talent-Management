@@ -1,0 +1,5 @@
+FROM python:3.11-slim
+ENV PYTHONUNBUFFERED=1
+RUN pip install --no-cache-dir confluent-kafka==2.5.3 requests
+WORKDIR /app
+COPY generator.py case_worker.py dcr_client.py ./
