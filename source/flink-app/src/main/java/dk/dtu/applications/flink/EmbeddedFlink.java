@@ -4,7 +4,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import dk.dtu.applications.ApplicationJob;
-import dk.dtu.applications.camunda.CamundaSink;
+import dk.dtu.applications.camunda.ApplicationReceivedSink;
+import dk.dtu.applications.camunda.ScaleUpRequestedSink;
 import jakarta.annotation.PreDestroy;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -18,27 +19,28 @@ import org.springframework.stereotype.Component;
 import java.util.concurrent.TimeUnit;
 
 @Component
-@ConditionalOnProperty(name = "flink.enabled", matchIfMissing = true)
 final class EmbeddedFlink implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(EmbeddedFlink.class);
     private final ApplicationInbox inbox;
     private final ApplicationContext context;
-    private final CamundaSink sink;
+    private final ApplicationReceivedSink applicationSink;
+    private final ScaleUpRequestedSink scaleUpSink;
     private String inboxId;
     private StreamExecutionEnvironment execution;
     private JobClient job;
     private volatile boolean stopping;
 
-    EmbeddedFlink(ApplicationInbox inbox, ApplicationContext context, CamundaSink sink) {
+    EmbeddedFlink(ApplicationInbox inbox, ApplicationContext context, ApplicationReceivedSink applicationSink, ScaleUpRequestedSink scaleUpSink) {
         this.inbox = inbox;
         this.context = context;
-        this.sink = sink;
+        this.applicationSink = applicationSink;
+        this.scaleUpSink = scaleUpSink;
     }
 
     @Override public void run(ApplicationArguments args) throws Exception {
         log.info("Starting embedded Flink job");
         inboxId = InboxRegistry.register(inbox);
-        execution = ApplicationJob.create(inboxId, sink);
+        execution = ApplicationJob.create(inboxId, applicationSink, scaleUpSink);
         job = execution.executeAsync("Talent application intake");
         log.info("Embedded Flink job submitted jobId={}", job.getJobID());
         job.getJobExecutionResult().whenComplete((result, failure) -> {
@@ -47,17 +49,13 @@ final class EmbeddedFlink implements ApplicationRunner {
             } else {
                 log.info("Embedded Flink job stopped jobId={}", job.getJobID());
             }
-            inbox.stopReading();
             AvailabilityChangeEvent.publish(context, ReadinessState.REFUSING_TRAFFIC);
         });
-        inbox.started().get(60, TimeUnit.SECONDS);
-        log.info("Embedded Flink reader ready jobId={}", job.getJobID());
     }
 
     @PreDestroy void stop() throws Exception {
         stopping = true;
-        log.info("Stopping embedded Flink and disabling intake");
-        inbox.stopReading();
+        log.info("Stopping embedded Flink");
         try {
             if (job != null) job.cancel().get(20, TimeUnit.SECONDS);
         } finally {

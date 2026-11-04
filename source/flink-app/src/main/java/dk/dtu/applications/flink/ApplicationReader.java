@@ -7,10 +7,11 @@ import dk.dtu.applications.model.EventType;
 import org.apache.flink.api.connector.source.ReaderOutput;
 import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.core.io.InputStatus;
+import org.apache.flink.connector.testframe.source.split.FromElementsSplit;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-final class ApplicationReader<T> implements SourceReader<T, ApplicationSource.EmptyState> {
+final class ApplicationReader<T> implements SourceReader<T, FromElementsSplit> {
     private static final Logger log = LoggerFactory.getLogger(ApplicationReader.class);
     private final ApplicationInbox inbox;
     private final EventType key;
@@ -22,10 +23,9 @@ final class ApplicationReader<T> implements SourceReader<T, ApplicationSource.Em
     }
 
     @Override public void start() {
-        inbox.startReading(key);
         log.info("Flink inbox reader started key={}", key);
     }
-    @Override public void addSplits(List<ApplicationSource.EmptyState> splits) {}
+    @Override public void addSplits(List<FromElementsSplit> splits) {}
     @Override public InputStatus pollNext(ReaderOutput<T> output) {
         T payload = inbox.poll(key, payloadType);
         if (payload == null) return InputStatus.NOTHING_AVAILABLE;
@@ -34,10 +34,9 @@ final class ApplicationReader<T> implements SourceReader<T, ApplicationSource.Em
         return InputStatus.MORE_AVAILABLE;
     }
     @Override public CompletableFuture<Void> isAvailable() { return inbox.available(key); }
-    @Override public List<ApplicationSource.EmptyState> snapshotState(long checkpointId) { return List.of(); }
+    @Override public List<FromElementsSplit> snapshotState(long checkpointId) { return List.of(); }
     @Override public void notifyNoMoreSplits() {}
     @Override public void close() {
-        inbox.stopReading(key);
         log.info("Flink inbox reader stopped key={}", key);
     }
 }

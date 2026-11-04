@@ -18,19 +18,20 @@ class RollingHourTest {
             harness.setProcessingTime(100);
             for (int i = 0; i < 5; i++) harness.processElement(new StreamRecord<>(new Application()));
             assertEquals(5, harness.extractOutputStreamRecords().size());
-            assertTrue(harness.extractOutputStreamRecords().stream().noneMatch(record -> record.getValue().scaleUp));
+            assertNull(harness.getSideOutput(RollingHour.SCALE_UP));
             harness.getOutput().clear();
             harness.processElement(new StreamRecord<>(new Application()));
-            assertEquals(2, harness.extractOutputStreamRecords().size());
-            assertTrue(harness.extractOutputStreamRecords().get(1).getValue().scaleUp);
+            assertEquals(1, harness.extractOutputStreamRecords().size());
+            assertEquals(1, harness.getSideOutput(RollingHour.SCALE_UP).size());
+            assertEquals(6, harness.getSideOutput(RollingHour.SCALE_UP).peek().getValue().count);
             harness.getOutput().clear();
             harness.processElement(new StreamRecord<>(new Application()));
             assertEquals(1, harness.extractOutputStreamRecords().size());
             harness.getOutput().clear();
             harness.setProcessingTime(100 + RollingHour.HOUR);
             for (int i = 0; i < 6; i++) harness.processElement(new StreamRecord<>(new Application()));
-            assertEquals(7, harness.extractOutputStreamRecords().size());
-            assertEquals(1, harness.extractOutputStreamRecords().stream().filter(record -> record.getValue().scaleUp).count());
+            assertEquals(6, harness.extractOutputStreamRecords().size());
+            assertEquals(2, harness.getSideOutput(RollingHour.SCALE_UP).size());
         }
     }
 
@@ -44,12 +45,14 @@ class RollingHourTest {
             harness.setProcessingTime(200);
             for (int i = 0; i < 5; i++) harness.processElement(new StreamRecord<>(new Application()));
             harness.getOutput().clear();
+            harness.getSideOutput(RollingHour.SCALE_UP).clear();
             // At exactly one hour, only the first arrival expires: count goes 6 -> 5.
             harness.setProcessingTime(100 + RollingHour.HOUR);
             harness.processElement(new StreamRecord<>(new Application()));
-            assertEquals(2, harness.extractOutputStreamRecords().size());
+            assertEquals(1, harness.extractOutputStreamRecords().size());
             assertEquals(6, harness.extractOutputStreamRecords().get(0).getValue().count);
-            assertTrue(harness.extractOutputStreamRecords().get(1).getValue().scaleUp);
+            assertEquals(1, harness.getSideOutput(RollingHour.SCALE_UP).size());
+            assertEquals(6, harness.getSideOutput(RollingHour.SCALE_UP).peek().getValue().count);
         }
     }
 

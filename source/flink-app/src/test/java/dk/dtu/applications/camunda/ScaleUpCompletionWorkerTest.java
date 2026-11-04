@@ -14,7 +14,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ScaleUpCompletionWorkerTest {
-    @Test void forwardsNotificationAndOnlyAcknowledgesAcceptedEvents() throws Exception {
+    @Test void forwardsAndAcknowledgesNotifications() throws Exception {
         var completions = new AtomicInteger();
         var activation = new AtomicReference<String>();
         var server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -37,17 +37,13 @@ class ScaleUpCompletionWorkerTest {
         });
         server.start();
         try {
-            var inbox = new ApplicationInbox(1);
+            var inbox = new ApplicationInbox();
             var worker = new ScaleUpCompletionWorker(inbox, RestClient.builder()
                 .baseUrl("http://127.0.0.1:" + server.getAddress().getPort() + "/v2").build());
-            worker.poll(); // Reader not ready: leave the job uncompleted.
-            assertEquals(0, completions.get());
-            assertNull(inbox.poll(EventType.SCALE_UP_COMPLETED, ScaleUpCompletion.class));
-            inbox.startReading(EventType.SCALE_UP_COMPLETED);
             worker.poll();
             assertEquals(1, completions.get());
-            worker.poll(); // Inbox full: leave this delivery uncompleted too.
-            assertEquals(1, completions.get());
+            worker.poll();
+            assertEquals(2, completions.get());
             var event = inbox.poll(EventType.SCALE_UP_COMPLETED, ScaleUpCompletion.class);
             assertNotNull(event);
             assertEquals("456", event.processInstanceKey);

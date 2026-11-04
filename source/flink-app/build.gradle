@@ -9,6 +9,7 @@ repositories { mavenCentral() }
 dependencies {
     implementation 'org.apache.flink:flink-streaming-java:2.3.0'
     implementation 'org.apache.flink:flink-clients:2.3.0'
+    implementation('org.apache.flink:flink-connector-test-utils:2.3.0') { transitive = false }
     implementation platform('org.springframework.boot:spring-boot-dependencies:3.5.16')
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-validation'

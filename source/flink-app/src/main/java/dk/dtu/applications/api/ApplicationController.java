@@ -36,10 +36,7 @@ final class ApplicationController {
         application.receivedAt = System.currentTimeMillis();
         application.name = submission.name();
         application.position = submission.position();
-        if (!queue.offer(new IntakeEvent<>(EventType.APPLICATION, application))) {
-            log.warn("Application rejected: intake unavailable or queue full applicationId={}", application.applicationId);
-            return ResponseEntity.status(503).body(Map.of("error", "Intake unavailable or queue full; try later"));
-        }
+        queue.offer(new IntakeEvent<>(EventType.APPLICATION, application));
         log.info("Application accepted applicationId={} position={}", application.applicationId, application.position);
         return ResponseEntity.accepted().body(Map.of("applicationId", application.applicationId));
     }

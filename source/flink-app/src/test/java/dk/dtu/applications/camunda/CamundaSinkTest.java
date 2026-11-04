@@ -5,7 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import dk.dtu.applications.config.CamundaClientFactory;
 import dk.dtu.applications.model.Application;
-import dk.dtu.applications.model.Command;
+import dk.dtu.applications.model.ApplicationReceived;
+import dk.dtu.applications.model.ScaleUpRequested;
 import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.net.InetSocketAddress;
@@ -30,20 +31,22 @@ class CamundaSinkTest {
             var factory = new CamundaClientFactory("http://127.0.0.1:" + server.getAddress().getPort() + "/v2",
                 "demo", "password", "test-token", Duration.ofSeconds(5), Duration.ofSeconds(15));
             var bytes = new ByteArrayOutputStream();
-            try (var output = new ObjectOutputStream(bytes)) { output.writeObject(new CamundaSink(factory)); }
-            CamundaSink restored;
+            try (var output = new ObjectOutputStream(bytes)) { output.writeObject(new ApplicationReceivedSink(factory)); output.writeObject(new ScaleUpRequestedSink(factory)); }
+            ApplicationReceivedSink restored;
+            ScaleUpRequestedSink scaleUp;
             try (var input = new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
-                restored = (CamundaSink) input.readObject();
+                restored = (ApplicationReceivedSink) input.readObject();
+                scaleUp = (ScaleUpRequestedSink) input.readObject();
             }
             var application = new Application();
             application.applicationId = "application-1";
             application.name = "Ada";
             application.position = "PhD student";
-            try (var writer = restored.createWriter(null)) {
-                writer.write(new Command(application, false, 6), null);
-                writer.write(new Command(application, true, 6), null);
+            try (var writer = restored.createWriter(null); var scaleWriter = scaleUp.createWriter(null)) {
+                writer.write(new ApplicationReceived(application, 6), null);
+                scaleWriter.write(new ScaleUpRequested(application, 6), null);
                 // Preserve existing behavior: log rejected responses, without retrying.
-                writer.write(new Command(application, false, 6), null);
+                writer.write(new ApplicationReceived(application, 6), null);
             }
             assertEquals(List.of("Bearer test-token", "Bearer test-token", "Bearer test-token"), authorization);
             assertEquals(3, requests.size());

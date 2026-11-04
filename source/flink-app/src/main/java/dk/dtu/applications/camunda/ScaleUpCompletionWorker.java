@@ -17,7 +17,6 @@ import java.util.List;
 import java.util.Map;
 
 @Component
-@ConditionalOnProperty(name = "camunda.worker.enabled", matchIfMissing = true)
 final class ScaleUpCompletionWorker {
     static final String JOB_TYPE = "notify-flink-scale-up-completed";
     private static final Logger log = LoggerFactory.getLogger(ScaleUpCompletionWorker.class);
@@ -38,7 +37,6 @@ final class ScaleUpCompletionWorker {
                     "fetchVariable", List.of("applicationId", "triggerId"))).retrieve().body(JsonNode.class);
             if (response != null) for (JsonNode job : response.path("jobs")) forward(job);
         } catch (RestClientException | IllegalArgumentException error) {
-            // No local retry loop: an uncompleted activation becomes available after its lock expires.
             log.warn("Scale-up notification worker could not finish its poll: {}", error.getClass().getSimpleName());
         }
     }
@@ -50,10 +48,7 @@ final class ScaleUpCompletionWorker {
         completion.applicationId = job.required("variables").required("applicationId").asText();
         completion.triggerId = job.required("variables").required("triggerId").asText();
         completion.receivedAt = System.currentTimeMillis();
-        if (!inbox.offer(new IntakeEvent<>(EventType.SCALE_UP_COMPLETED, completion))) {
-            log.warn("Scale-up completion deferred: inbox unavailable or full processInstanceKey={}", completion.processInstanceKey);
-            return; // Do not acknowledge a notification we have not accepted.
-        }
+        inbox.offer(new IntakeEvent<>(EventType.SCALE_UP_COMPLETED, completion));
         client.post().uri("/jobs/{key}/completion", jobKey)
                 .body(Map.of("variables", Map.of("flinkNotificationAccepted", true)))
                 .retrieve().toBodilessEntity();

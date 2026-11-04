@@ -2,7 +2,6 @@ package dk.dtu.applications.model;
 
 import java.util.Objects;
 
-/** An enum routes the event; the payload remains generic. */
 public record IntakeEvent<T>(EventType type, T payload) {
     public IntakeEvent {
         Objects.requireNonNull(type);
