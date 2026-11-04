@@ -23,3 +23,11 @@ ENV/
 
 # Camunda temporary files
 *.bpmn.tmp
+
+# Java build output
+source/flink-app/build/
+source/flink-app/.gradle/
+
+# Local embedded Flink checkpoints
+/source/flink-app/data/
+/data/

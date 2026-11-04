@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+  xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_application-received" targetNamespace="http://dtu.dk/talent">
+  <bpmn:process id="application-received" name="Application received" isExecutable="true">
+    <bpmn:startEvent id="start"><bpmn:outgoing>to_review</bpmn:outgoing></bpmn:startEvent>
+    <bpmn:sequenceFlow id="to_review" sourceRef="start" targetRef="review"/>
+    <bpmn:userTask id="review" name="Application received"><bpmn:extensionElements><zeebe:userTask/></bpmn:extensionElements><bpmn:incoming>to_review</bpmn:incoming><bpmn:outgoing>to_end</bpmn:outgoing></bpmn:userTask>
+    <bpmn:sequenceFlow id="to_end" sourceRef="review" targetRef="end"/>
+    <bpmn:endEvent id="end"><bpmn:incoming>to_end</bpmn:incoming></bpmn:endEvent>
+  </bpmn:process>
+  <bpmndi:BPMNDiagram id="Diagram_application-received">
+    <bpmndi:BPMNPlane id="Plane_application-received" bpmnElement="application-received">
+      <bpmndi:BPMNShape id="start_di" bpmnElement="start">
+        <dc:Bounds x="100" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="review_di" bpmnElement="review">
+        <dc:Bounds x="220" y="138" width="180" height="80"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="end_di" bpmnElement="end">
+        <dc:Bounds x="480" y="160" width="36" height="36"/>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="to_review_di" bpmnElement="to_review">
+        <di:waypoint x="136" y="178"/>
+        <di:waypoint x="220" y="178"/>
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="to_end_di" bpmnElement="to_end">
+        <di:waypoint x="400" y="178"/>
+        <di:waypoint x="480" y="178"/>
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>
