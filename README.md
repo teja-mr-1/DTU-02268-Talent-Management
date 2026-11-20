@@ -1,35 +1,23 @@
-# DTU Compute Talent Management System
+# Local Full Professor Hiring Pipeline (Steps 1, 2 & 3)
 
-**Course:** 02268 - Process-Oriented and Event-Driven Software Systems  
-**Institution:** Technical University of Denmark (DTU)  
+Standalone copy (not a git repo) running the full **Step 1 -> Step 2 -> Step 3** pipeline:
 
----
+1. **Step 1 (Intake & CEP):** Applicant Portal (`POST /api/applications`) + HR/Department Workflow (`POST /api/vacancies/...`) -> Apache Flink `RollingHour` CEP (>5 apps/hr triggers scale-up alert) -> Camunda 8 (`hiring-full-professor.bpmn`) or built-in local simulator when Docker is not running.
+2. **Step 2 (Per-Vacancy XES Builder):** Camunda `emit-hiring-trace` worker (`HiringTraceWorker`) or Event Source 2 -> Flink `VacancyTraceCollector` keyed by `vacancyId` -> publishes `data/xes/<vacancyId>.xes` via `XesLogBuilder`.
+3. **Step 3 (Live DTU Process Doctor Audit):** Flink `ConformanceCheckSink` -> `ConformanceChecker` (Playwright) -> uploads `.xes` + bundled `Full_Professor_Hiring_Compliance.dcr.xml` to `https://processdoctor.compute.dtu.dk/` -> exposes results at `GET /api/conformance` and `GET /api/vacancies`.
 
-## 1. Overview
-This repository contains the process models, event-processing components, and documentation for the DTU Compute Talent Management project.
+## Run Locally (No Docker Needed)
 
----
-
-## 2. Skeleton Structure
-
-```text
-DTU-02268-Talent-Management/
-├── models/
-│   ├── bpmn/           # Camunda BPMN models
-│   ├── dcr/            # DCR graphs
-│   └── dmn/            # DMN decision tables
-├── cep-siddhi/         # Complex Event Processing (Siddhi)
-├── presentation/       # Presentation slides
-├── docs/               # Course project specifications
-├── .gitignore
-└── README.md
+```bash
+cd /mnt/linuxdata/fraud-brain/proess/local-full-pipeline-demo/source/flink-app
+./gradlew run
 ```
 
----
+Then open: `http://localhost:8090`
 
-## 3. Modeling Tools & Links
+## Run Tests
 
-* **Camunda Modeler (BPMN & DMN):** [https://camunda.com/download/modeler/](https://camunda.com/download/modeler/)
-* **Process Doctor (DTU DCR Tool):** [https://processdoctor.compute.dtu.dk/](https://processdoctor.compute.dtu.dk/)
-* **DCR Portal:** [https://www.dcrgraphs.net/](https://www.dcrgraphs.net/)
-* **Siddhi CEP Engine:** [https://siddhi.io/](https://siddhi.io/)
+```bash
+cd /mnt/linuxdata/fraud-brain/proess/local-full-pipeline-demo/source/flink-app
+./gradlew test --no-daemon
+```

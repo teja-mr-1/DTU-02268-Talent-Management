@@ -31,3 +31,4 @@ source/flink-app/.gradle/
 # Local embedded Flink checkpoints
 /source/flink-app/data/
 /data/
+xes-logs/

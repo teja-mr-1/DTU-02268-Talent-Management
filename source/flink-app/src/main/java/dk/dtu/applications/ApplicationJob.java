@@ -2,57 +2,89 @@ package dk.dtu.applications;
 
 import dk.dtu.applications.config.Settings;
 import dk.dtu.applications.flink.ApplicationSource;
-import dk.dtu.applications.flink.ScaleUpCompletionHandler;
-import dk.dtu.applications.model.Application;
-import dk.dtu.applications.model.EventType;
-import dk.dtu.applications.model.ScaleUpCompletion;
-import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
-import org.apache.flink.api.connector.sink2.Sink;
-import dk.dtu.applications.model.ApplicationReceived;
-import dk.dtu.applications.model.ScaleUpRequested;
+import dk.dtu.applications.flink.ConformanceCheckSink;
 import dk.dtu.applications.flink.RollingHour;
-
-import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import dk.dtu.applications.flink.ScaleUpCompletionHandler;
+import dk.dtu.applications.flink.VacancyTraceCollector;
+import dk.dtu.applications.model.Application;
+import dk.dtu.applications.model.ApplicationReceived;
+import dk.dtu.applications.model.EventType;
+import dk.dtu.applications.model.HiringTraceEvent;
+import dk.dtu.applications.model.ScaleUpCompletion;
+import dk.dtu.applications.model.ScaleUpRequested;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
+import org.apache.flink.api.connector.sink2.Sink;
 import org.apache.flink.configuration.CheckpointingOptions;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.configuration.CoreOptions;
 import org.apache.flink.configuration.ExternalizedCheckpointRetention;
 import org.apache.flink.configuration.RestartStrategyOptions;
-import java.time.Duration;
+import org.apache.flink.configuration.RestOptions;
+import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.sink.v2.DiscardingSink;
+
 import java.nio.file.Path;
+import java.time.Duration;
 
 public class ApplicationJob {
-    public static StreamExecutionEnvironment create(String inboxId, Sink<ApplicationReceived> applicationSink, Sink<ScaleUpRequested> scaleUpSink) {
+    public static StreamExecutionEnvironment create(
+            String inboxId,
+            String runtimeId,
+            Sink<ApplicationReceived> applicationSink,
+            Sink<ScaleUpRequested> scaleUpSink) {
         Configuration config = new Configuration();
         config.set(CoreOptions.DEFAULT_PARALLELISM, 1);
         config.set(CoreOptions.CLASSLOADER_RESOLVE_ORDER, "parent-first");
         config.set(CheckpointingOptions.CHECKPOINTING_INTERVAL, Duration.ofSeconds(10));
         config.set(CheckpointingOptions.CHECKPOINT_STORAGE, "filesystem");
         config.set(CheckpointingOptions.CHECKPOINTS_DIRECTORY,
-            Settings.value("CHECKPOINT_DIRECTORY", Path.of("data/checkpoints").toAbsolutePath().toUri().toString()));
+                Settings.value("CHECKPOINT_DIRECTORY", Path.of("data/checkpoints").toAbsolutePath().toUri().toString()));
         config.set(CheckpointingOptions.EXTERNALIZED_CHECKPOINT_RETENTION,
-            ExternalizedCheckpointRetention.RETAIN_ON_CANCELLATION);
+                ExternalizedCheckpointRetention.RETAIN_ON_CANCELLATION);
         config.set(RestartStrategyOptions.RESTART_STRATEGY, "fixed-delay");
         config.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_ATTEMPTS, 100);
         config.set(RestartStrategyOptions.RESTART_STRATEGY_FIXED_DELAY_DELAY, Duration.ofSeconds(10));
-        StreamExecutionEnvironment execution = StreamExecutionEnvironment.createLocalEnvironment(config);
+        config.set(RestOptions.BIND_ADDRESS, "0.0.0.0");
+        config.set(RestOptions.PORT, Integer.parseInt(Settings.value("FLINK_WEB_PORT", "8081")));
+        StreamExecutionEnvironment execution = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(config);
 
-        var outcomes = execution.fromSource(new ApplicationSource<>(inboxId, EventType.APPLICATION, Application.class), WatermarkStrategy.noWatermarks(), "Application inbox")
-            .uid("applications-source")
-            .keyBy(value -> "all-applications")
-            .process(new RollingHour()).name("Rolling hour threshold").uid("rolling-hour");
+        // Step 1: Incoming applications -> RollingHour CEP -> Camunda start + scale-up alert
+        var outcomes = execution.fromSource(
+                        new ApplicationSource<>(inboxId, EventType.APPLICATION, Application.class),
+                        WatermarkStrategy.noWatermarks(),
+                        "Application inbox")
+                .uid("applications-source")
+                .keyBy(value -> "all-applications")
+                .process(new RollingHour(runtimeId)).name("Rolling hour threshold").uid("rolling-hour");
         outcomes.sinkTo(applicationSink).name("Start application process").uid("camunda-start");
         outcomes.getSideOutput(RollingHour.SCALE_UP)
-            .sinkTo(scaleUpSink).name("Start scale-up process").uid("camunda-scale-up");
+                .sinkTo(scaleUpSink).name("Start scale-up process").uid("camunda-scale-up");
 
-        execution.fromSource(new ApplicationSource<>(inboxId, EventType.SCALE_UP_COMPLETED, ScaleUpCompletion.class),
-                WatermarkStrategy.noWatermarks(), "Scale-up completion inbox")
-            .uid("scale-up-completions-source")
-            .keyBy(completion -> "all-completions")
-            .process(new ScaleUpCompletionHandler()).name("Record scale-up completion").uid("scale-up-completions")
-            .sinkTo(new DiscardingSink<>()).name("Completion handling finished").uid("completions-finished");
+        // Step 2 & 3: Per-vacancy hiring trace events -> XES builder -> Process Doctor conformance check
+        String xesDir = Settings.value("XES_OUTPUT_DIR", Path.of("data/xes").toAbsolutePath().toString());
+        execution.fromSource(
+                        new ApplicationSource<>(inboxId, EventType.HIRING_TRACE_EVENT, HiringTraceEvent.class),
+                        WatermarkStrategy.noWatermarks(),
+                        "Hiring trace event inbox")
+                .uid("hiring-traces-source")
+                .keyBy(event -> event.vacancyId)
+                .process(new VacancyTraceCollector(runtimeId, xesDir))
+                .name("Collect per-vacancy XES trace")
+                .uid("vacancy-trace-collector")
+                .sinkTo(new ConformanceCheckSink(runtimeId))
+                .name("Process Doctor DCR conformance check")
+                .uid("process-doctor-conformance");
+
+        // Bi-directional scale-up completion callback from Camunda
+        execution.fromSource(
+                        new ApplicationSource<>(inboxId, EventType.SCALE_UP_COMPLETED, ScaleUpCompletion.class),
+                        WatermarkStrategy.noWatermarks(),
+                        "Scale-up completion inbox")
+                .uid("scale-up-completions-source")
+                .keyBy(completion -> "all-completions")
+                .process(new ScaleUpCompletionHandler()).name("Record scale-up completion").uid("scale-up-completions")
+                .sinkTo(new DiscardingSink<>()).name("Completion handling finished").uid("completions-finished");
+
         return execution;
     }
-
 }

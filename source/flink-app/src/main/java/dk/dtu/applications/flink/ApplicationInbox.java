@@ -30,6 +30,15 @@ public final class ApplicationInbox {
     }
     public synchronized CompletableFuture<Void> available(EventType key) { return channels.get(key).available; }
 
+    public synchronized void clearAll() {
+        for (Channel channel : channels.values()) {
+            channel.queue.clear();
+            if (channel.available.isDone()) {
+                channel.available = new CompletableFuture<>();
+            }
+        }
+    }
+
     private static class Channel {
         final ArrayDeque<IntakeEvent<?>> queue = new ArrayDeque<>();
         CompletableFuture<Void> available = new CompletableFuture<>();

@@ -21,24 +21,50 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 import java.util.UUID;
 import dk.dtu.applications.flink.ApplicationInbox;
+import dk.dtu.applications.flink.VacancyTraceStore;
+import org.springframework.http.HttpStatus;
 
 @RestController
 final class ApplicationController {
     private static final Logger log = LoggerFactory.getLogger(ApplicationController.class);
     private final ApplicationInbox queue;
+    private final VacancyTraceStore store;
 
-    ApplicationController(ApplicationInbox queue) { this.queue = queue; }
+    ApplicationController(ApplicationInbox queue, VacancyTraceStore store) {
+        this.queue = queue;
+        this.store = store;
+    }
 
     @PostMapping("/api/applications")
     ResponseEntity<Map<String, String>> submit(@Valid @RequestBody Submission submission) {
+        String vacancyId = (submission.vacancyId() == null || submission.vacancyId().isBlank())
+                ? "VAC-FP-2026-01"
+                : submission.vacancyId().strip();
+        if (store.isVacancyClosed(vacancyId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", "Vacancy " + vacancyId + " is already filled and closed. Please enter a new Vacancy ID."));
+        }
         Application application = new Application();
         application.applicationId = UUID.randomUUID().toString();
+        application.vacancyId = vacancyId;
         application.receivedAt = System.currentTimeMillis();
         application.name = submission.name();
         application.position = submission.position();
+        application.email = (submission.email() == null || submission.email().isBlank())
+                ? "applicant@dtu-demo.dk"
+                : submission.email().strip();
+        application.citizenship = (submission.citizenship() == null || submission.citizenship().isBlank())
+                ? "Denmark (EU/EEA)"
+                : submission.citizenship().strip();
+        application.previouslyAtDtu = (submission.previouslyAtDtu() == null || submission.previouslyAtDtu().isBlank())
+                ? "No"
+                : submission.previouslyAtDtu().strip();
         queue.offer(new IntakeEvent<>(EventType.APPLICATION, application));
-        log.info("Application accepted applicationId={} position={}", application.applicationId, application.position);
-        return ResponseEntity.accepted().body(Map.of("applicationId", application.applicationId));
+        log.info("Application accepted applicationId={} vacancyId={} position={}",
+                application.applicationId, application.vacancyId, application.position);
+        return ResponseEntity.accepted().body(Map.of(
+                "applicationId", application.applicationId,
+                "vacancyId", application.vacancyId));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, HttpMessageNotReadableException.class})
@@ -49,7 +75,11 @@ final class ApplicationController {
 
     record Submission(
         @NotBlank @Size(max = 160) String name,
-        @NotBlank @Pattern(regexp = "PhD student|Associate professor|Assistant professor") String position) {
+        @NotBlank @Pattern(regexp = "Full professor|Associate professor|Assistant professor|PhD student") String position,
+        @Size(max = 80) String vacancyId,
+        @Size(max = 160) String email,
+        @Size(max = 100) String citizenship,
+        @Size(max = 20) String previouslyAtDtu) {
         Submission { if (name != null) name = name.strip(); }
     }
 }

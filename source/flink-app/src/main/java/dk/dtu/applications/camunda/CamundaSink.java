@@ -14,8 +14,12 @@ public final class CamundaSink {
     public CamundaSink(RestClient client) { this.client = client; }
 
     public void startProcess(Application application, long count, String process, String suffix) {
+        String vacancyId = (application.vacancyId == null || application.vacancyId.isBlank())
+                ? "VAC-FP-2026-01"
+                : application.vacancyId;
         Map<String, Object> payload = Map.of("processDefinitionId", process, "variables", Map.of(
             "applicationId", application.applicationId,
+            "vacancyId", vacancyId,
             "name", application.name,
             "position", application.position,
             "receivedAt", application.receivedAt,

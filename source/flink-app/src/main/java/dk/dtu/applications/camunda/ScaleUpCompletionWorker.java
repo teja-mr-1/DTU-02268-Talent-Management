@@ -1,13 +1,13 @@
 package dk.dtu.applications.camunda;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import dk.dtu.applications.config.Settings;
 import dk.dtu.applications.flink.ApplicationInbox;
 import dk.dtu.applications.model.IntakeEvent;
 import dk.dtu.applications.model.EventType;
 import dk.dtu.applications.model.ScaleUpCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -29,6 +29,12 @@ final class ScaleUpCompletionWorker {
     }
 
     @Scheduled(fixedDelayString = "${camunda.worker.poll-interval:1000}")
+    void scheduledPoll() {
+        if (!Settings.localCamundaSimulator()) {
+            poll();
+        }
+    }
+
     void poll() {
         try {
             JsonNode response = client.post().uri("/jobs/activation").body(Map.of(
