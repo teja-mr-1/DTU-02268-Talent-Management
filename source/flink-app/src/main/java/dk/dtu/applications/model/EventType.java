@@ -1,8 +1,7 @@
 package dk.dtu.applications.model;
 
 public enum EventType {
-    APPLICATION(Application.class),
-    SCALE_UP_COMPLETED(ScaleUpCompletion.class);
+    APPLICATION(Application.class);
 
     private final Class<?> payloadType;
     EventType(Class<?> payloadType) { this.payloadType = payloadType; }

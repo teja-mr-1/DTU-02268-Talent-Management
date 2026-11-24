@@ -5,13 +5,12 @@ import org.slf4j.LoggerFactory;
 
 import dk.dtu.applications.ApplicationJob;
 import dk.dtu.applications.camunda.ApplicationReceivedSink;
-import dk.dtu.applications.camunda.ScaleUpRequestedSink;
+import dk.dtu.applications.dcr.ScaleUpRequestedSink;
 import jakarta.annotation.PreDestroy;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
 import org.springframework.context.ApplicationContext;
@@ -39,7 +38,7 @@ final class EmbeddedFlink implements ApplicationRunner {
 
     @Override public void run(ApplicationArguments args) throws Exception {
         log.info("Starting embedded Flink job");
-        inboxId = InboxRegistry.register(inbox);
+        inboxId = FlinkRegistry.register(inbox, scaleUpSink.state());
         execution = ApplicationJob.create(inboxId, applicationSink, scaleUpSink);
         job = execution.executeAsync("Talent application intake");
         log.info("Embedded Flink job submitted jobId={}", job.getJobID());
@@ -61,7 +60,7 @@ final class EmbeddedFlink implements ApplicationRunner {
         } finally {
             try { if (execution != null) execution.close(); }
             finally {
-                if (inboxId != null) InboxRegistry.remove(inboxId);
+                if (inboxId != null) FlinkRegistry.remove(inboxId);
                 log.info("Embedded Flink resources released");
             }
         }

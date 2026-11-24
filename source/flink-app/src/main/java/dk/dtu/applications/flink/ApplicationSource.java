@@ -24,7 +24,7 @@ public class ApplicationSource<T> implements Source<T, FromElementsSplit, NoOpEn
     @Override public TypeInformation<T> getProducedType() { return TypeInformation.of(payloadType); }
     @Override public Boundedness getBoundedness() { return Boundedness.CONTINUOUS_UNBOUNDED; }
     @Override public SourceReader<T, FromElementsSplit> createReader(SourceReaderContext context) {
-        return new ApplicationReader<>(InboxRegistry.get(inboxId), key, payloadType);
+        return new ApplicationReader<>(FlinkRegistry.get(inboxId), key, payloadType);
     }
     @Override public SplitEnumerator<FromElementsSplit, NoOpEnumState> createEnumerator(SplitEnumeratorContext<FromElementsSplit> context) {
         return enumerator(context);

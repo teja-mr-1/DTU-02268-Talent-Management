@@ -1,4 +1,3 @@
-# Local development stack. Requires Docker Compose 2.23.1+ for inline configs.
 services:
   applications:
     image: talent-applications:local
@@ -11,6 +10,8 @@ services:
       CAMUNDA_REST_URL: http://orchestration:8080/v2
       CAMUNDA_USERNAME: demo
       CAMUNDA_PASSWORD: demo
+      DCR_USERNAME: ${DCR_USERNAME:-}
+      DCR_PASSWORD: ${DCR_PASSWORD:-}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       FLINK_LOG_LEVEL: ${FLINK_LOG_LEVEL:-WARN}
     volumes:
@@ -77,8 +78,6 @@ services:
       - demo:demo
       - --form
       - resources=@/models/application-received.bpmn
-      - --form
-      - resources=@/models/scale-up-application-receival.bpmn
       - http://orchestration:8080/v2/deployments
     volumes:
       - ./source/camunda:/models:ro
