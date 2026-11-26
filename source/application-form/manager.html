@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pending applications · Talent management</title>
+  <link rel="stylesheet" href="manager.css">
+</head>
+<body>
+  <header><a class="brand" href="manager.html">DTU <span>Talent management</span></a><span>Manager workspace</span></header>
+  <main>
+    <nav aria-label="Breadcrumb"><a href="index.html">Application form</a> / Applications</nav>
+    <p class="eyebrow">RECRUITMENT / OVERVIEW</p>
+    <h1>Pending applications</h1>
+    <p class="intro">Review the queue and distribute applications to your team for an initial assessment.</p>
+    <section class="summary" aria-label="Application counts" id="summary"></section>
+    <section class="panel">
+      <div class="panel-heading"><h2>Application queue</h2><span class="badge">Pending review</span></div>
+      <div class="table-scroll"><table><caption class="sr-only">Pending applications by candidate and position</caption><thead><tr><th>Application</th><th>Candidate</th><th>Position</th><th>Status</th></tr></thead><tbody id="applications"></tbody></table></div>
+    </section>
+    <div class="actions"><p id="status" role="status" aria-live="polite"></p><a class="button" href="distribution.html">Distribute applications →</a></div>
+  </main>
+  <script src="manager.js"></script>
+</body>
+</html>

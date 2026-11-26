@@ -10,6 +10,26 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class RollingHourTest {
+    @Test void activeScaleUpSuppressesThresholdEvenAfterHourExpires() throws Exception {
+        var state = new dk.dtu.applications.dcr.ScaleUpProcessState();
+        state.setSimulationId("active");
+        String inboxId = FlinkRegistry.register(new ApplicationInbox(), state);
+        try (var harness = new KeyedOneInputStreamOperatorTestHarness<>(
+                new KeyedProcessOperator<>(new RollingHour(inboxId)),
+                (Application application) -> "all", Types.STRING)) {
+            harness.open();
+            for (long time : new long[] {100, 100 + RollingHour.HOUR}) {
+                harness.setProcessingTime(time);
+                for (int i = 0; i < 7; i++) harness.processElement(new StreamRecord<>(new Application()));
+            }
+            assertNull(harness.getSideOutput(RollingHour.SCALE_UP));
+            assertEquals(14, harness.extractOutputStreamRecords().size());
+            state.setSimulationId(null);
+            harness.setProcessingTime(100 + 2 * RollingHour.HOUR);
+            for (int i = 0; i < 6; i++) harness.processElement(new StreamRecord<>(new Application()));
+            assertEquals(1, harness.getSideOutput(RollingHour.SCALE_UP).size());
+        } finally { FlinkRegistry.remove(inboxId); }
+    }
     @Test void sixthTriggersOnceAndExpiryRearms() throws Exception {
         try (var harness = new KeyedOneInputStreamOperatorTestHarness<>(
                 new KeyedProcessOperator<>(new RollingHour()),
