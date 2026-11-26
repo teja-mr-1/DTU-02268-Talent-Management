@@ -6,8 +6,6 @@ import dk.dtu.applications.model.XesLogBuilder;
 import org.apache.flink.api.common.functions.OpenContext;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
-import org.apache.flink.api.common.state.ValueState;
-import org.apache.flink.api.common.state.ValueStateDescriptor;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.util.Collector;
 import org.slf4j.Logger;
@@ -19,8 +17,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Step 2 Flink operator: collects Camunda/workflow trace events per vacancyId
- * into keyed Flink state and publishes an XES trace file once a terminal event arrives.
+ * Step 3 Flink operator: collects workflow trace events per vacancyId into keyed
+ * Flink state and publishes an IEEE XES trace file once a terminal event arrives.
  */
 public class VacancyTraceCollector extends KeyedProcessFunction<String, HiringTraceEvent, VacancyLogReady> {
     private static final Logger log = LoggerFactory.getLogger(VacancyTraceCollector.class);
@@ -28,7 +26,6 @@ public class VacancyTraceCollector extends KeyedProcessFunction<String, HiringTr
     private final String runtimeId;
     private final String xesOutputDir;
     private transient ListState<HiringTraceEvent> bufferedEvents;
-    private transient ValueState<Long> lastSeenEpoch;
 
     public VacancyTraceCollector(String runtimeId, String xesOutputDir) {
         this.runtimeId = runtimeId;
@@ -39,20 +36,10 @@ public class VacancyTraceCollector extends KeyedProcessFunction<String, HiringTr
     public void open(OpenContext context) {
         bufferedEvents = getRuntimeContext().getListState(
                 new ListStateDescriptor<>("vacancy-trace-events", HiringTraceEvent.class));
-        lastSeenEpoch = getRuntimeContext().getState(
-                new ValueStateDescriptor<>("vacancy-trace-epoch", Long.class));
     }
 
     @Override
     public void processElement(HiringTraceEvent event, Context context, Collector<VacancyLogReady> out) throws Exception {
-        RuntimeRegistry.Services services = RuntimeRegistry.get(runtimeId);
-        long currentEpoch = (services != null && services.store() != null) ? services.store().resetEpoch() : 0L;
-        Long seenEpoch = lastSeenEpoch.value();
-        if (seenEpoch == null || seenEpoch.longValue() != currentEpoch) {
-            bufferedEvents.clear();
-            lastSeenEpoch.update(currentEpoch);
-        }
-
         List<HiringTraceEvent> events = new ArrayList<>();
         for (HiringTraceEvent existing : bufferedEvents.get()) {
             events.add(existing);
@@ -63,6 +50,7 @@ public class VacancyTraceCollector extends KeyedProcessFunction<String, HiringTr
         log.info("Trace event buffered vacancyId={} eventName='{}' role='{}' terminal={} count={}",
                 event.vacancyId, event.eventName, event.role, event.terminal, events.size());
 
+        RuntimeRegistry.Services services = RuntimeRegistry.get(runtimeId);
         if (!event.terminal) {
             if (services != null && services.store() != null) {
                 services.store().recordTraceEvent(event.vacancyId, events);

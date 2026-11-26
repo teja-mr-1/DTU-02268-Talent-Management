@@ -12,5 +12,5 @@ RUN mkdir -p /data/checkpoints /data/xes /ms-playwright && \
     java -cp "/app/lib/*" com.microsoft.playwright.CLI install chromium --with-deps && \
     chown -R 10001:10001 /app /data /ms-playwright
 USER 10001:10001
-EXPOSE 8090 8081
+EXPOSE 8090
 ENTRYPOINT ["/app/bin/applications"]

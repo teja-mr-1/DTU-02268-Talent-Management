@@ -7,22 +7,18 @@ services:
       dockerfile: docker/Dockerfile.applications
     ports:
       - "127.0.0.1:8090:8090"
-      - "127.0.0.1:8081:8081"
     environment:
       CAMUNDA_REST_URL: http://orchestration:8080/v2
       CAMUNDA_USERNAME: demo
       CAMUNDA_PASSWORD: demo
-      APPLICATION_PROCESS_ID: hiring-full-professor
-      LOCAL_CAMUNDA_SIMULATOR: "false"
-      AUTO_CONFORMANCE_CHECK: "false"
-      FLINK_WEB_PORT: "8081"
-      XES_OUTPUT_DIR: /data/xes
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       FLINK_LOG_LEVEL: ${FLINK_LOG_LEVEL:-WARN}
+      XES_OUTPUT_DIR: /data/xes
+      AUTO_CONFORMANCE_CHECK: ${AUTO_CONFORMANCE_CHECK:-true}
+      DCR_MODEL_PATH: ${DCR_MODEL_PATH:-}
     volumes:
       - application-checkpoints:/data
       - ./xes-logs:/data/xes
-      - ./source/application-form:/static:ro
     depends_on:
       deploy-processes:
         condition: service_completed_successfully
@@ -85,8 +81,6 @@ services:
       - demo:demo
       - --form
       - resources=@/models/application-received.bpmn
-      - --form
-      - resources=@/models/hiring-full-professor.bpmn
       - --form
       - resources=@/models/scale-up-application-receival.bpmn
       - http://orchestration:8080/v2/deployments
