@@ -18,7 +18,7 @@ class VacancyTraceCollectorTest {
 
     @Test
     void collectsPerVacancyEventsAndPublishesXesOnTerminalEvent(@TempDir Path tempDir) throws Exception {
-        VacancyTraceStore store = new VacancyTraceStore(false);
+        VacancyTraceStore store = new VacancyTraceStore();
         String runtimeId = RuntimeRegistry.register(store, null);
         try (var harness = new KeyedOneInputStreamOperatorTestHarness<>(
                 new KeyedProcessOperator<>(new VacancyTraceCollector(runtimeId, tempDir.toString())),
@@ -34,7 +34,6 @@ class VacancyTraceCollectorTest {
                     new HiringTraceEvent("VAC-FP-1", "Publish position posting", "HR", 1_700_000_002_000L, false)));
 
             assertTrue(harness.extractOutputStreamRecords().isEmpty());
-            assertEquals("COLLECTING", store.snapshotVacancy("VAC-FP-1").orElseThrow().get("status"));
 
             harness.processElement(new StreamRecord<>(
                     new HiringTraceEvent("VAC-FP-1", "Close position unfilled", "HR", 1_700_000_005_000L, true)));
@@ -48,7 +47,6 @@ class VacancyTraceCollectorTest {
             assertTrue(Files.isRegularFile(Path.of(ready.xesPath)));
             assertTrue(ready.xesXml.contains("Close position unfilled"));
             assertFalse(ready.xesXml.contains("VAC-FP-2"));
-            assertEquals("CHECKING_CONFORMANCE", store.snapshotVacancy("VAC-FP-1").orElseThrow().get("status"));
             assertEquals(ready.xesXml, store.getXesXml("VAC-FP-1"));
         } finally {
             RuntimeRegistry.remove(runtimeId);
@@ -56,8 +54,8 @@ class VacancyTraceCollectorTest {
     }
 
     @Test
-    void clearsKeyedStateAfterTerminalEventSoSubsequentTraceStartsFresh(@TempDir Path tempDir) throws Exception {
-        VacancyTraceStore store = new VacancyTraceStore(false);
+    void clearsKeyedStateAfterTerminalEvent(@TempDir Path tempDir) throws Exception {
+        VacancyTraceStore store = new VacancyTraceStore();
         String runtimeId = RuntimeRegistry.register(store, null);
         try (var harness = new KeyedOneInputStreamOperatorTestHarness<>(
                 new KeyedProcessOperator<>(new VacancyTraceCollector(runtimeId, tempDir.toString())),
@@ -73,7 +71,7 @@ class VacancyTraceCollectorTest {
 
             harness.processElement(new StreamRecord<>(
                     new HiringTraceEvent("VAC-FP-1", "Request full professor position opening", "Head of Department", 1_700_000_005_000L, false)));
-            assertEquals(1, store.snapshotVacancy("VAC-FP-1").orElseThrow().get("eventCount"));
+            assertEquals(1, store.snapshotVacancies().get(0).get("eventCount"));
         } finally {
             RuntimeRegistry.remove(runtimeId);
         }

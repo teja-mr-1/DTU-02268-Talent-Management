@@ -38,13 +38,11 @@ DTU-02268-Talent-Management/
 
 ## 4. Step 3: Trace Collection & DCR Conformance Checking
 
-The `applications` service collects hiring trace events per `vacancyId` in embedded Apache Flink (`VacancyTraceCollector`), writes an IEEE `.xes` log once a terminal event arrives (`XesLogBuilder`), and verifies compliance against the DCR model on DTU Process Doctor (`ConformanceChecker` / `ConformanceCheckSink`).
+Hiring trace events are sent into the `applications` service via REST (for example using Camunda 8's Outbound REST Connector), grouped per `vacancyId` in embedded Flink (`VacancyTraceCollector`), written as an IEEE `.xes` file when `terminal: true` arrives (`XesLogBuilder`), and checked against the DCR compliance model on DTU Process Doctor (`ConformanceChecker`).
 
-### Connecting from Camunda 8 (Outbound REST Connector)
+### Endpoints
 
-Configure a Camunda 8 Outbound REST Connector pointing to `http://applications:8090/api/traces/events` (inside Docker Compose) or `http://localhost:8090/api/traces/events` (locally):
-
-- **Push one event per completed activity (`POST /api/traces/events`):**
+- `POST /api/traces/events` - Send a hiring trace event into Flink:
   ```json
   {
     "vacancyId": "VAC-FP-2026-01",
@@ -54,32 +52,12 @@ Configure a Camunda 8 Outbound REST Connector pointing to `http://applications:8
     "terminal": false
   }
   ```
-  `role` (defaults to `"System"`), `timestamp` (ISO-8601 or epoch ms, defaults to now), and `terminal` (defaults to `false`) are optional. Send `"terminal": true` on the final process activity to publish the `.xes` log and trigger conformance checking.
-
-- **Or send the full trace on process completion (`POST /api/traces/batch`):**
-  ```json
-  {
-    "vacancyId": "VAC-FP-2026-01",
-    "events": [
-      { "eventName": "Confirm funding availability", "role": "Head of Finance" },
-      { "eventName": "Close position unfilled", "role": "HR" }
-    ]
-  }
-  ```
-
-### Step 3 Endpoints
-
-- `POST /api/traces/events` - Enqueue a single hiring trace event into Flink.
-- `POST /api/traces/batch` - Enqueue an ordered list of events for a vacancy (final event marked `terminal=true` by default).
-- `GET /api/traces` - List all tracked vacancies, collected events, XES paths, and Process Doctor verdicts.
-- `GET /api/traces/{vacancyId}` - Inspect trace state and conformance result for one vacancy.
-- `GET /api/traces/{vacancyId}/xes` - Download the generated IEEE `.xes` XML log.
-- `POST /api/traces/{vacancyId}/check` - Run or re-run Process Doctor DCR conformance checking for a published vacancy trace (accepts optional `{"modelXml": "..."}`).
-- `GET /api/conformance` & `POST /api/conformance/check` - Direct conformance checking API (supports JSON, raw XML, or multipart `.xes` + optional `.dcr.xml` model).
+  `role` (defaults to `"System"`), `timestamp` (ISO-8601, defaults to now), and `terminal` (defaults to `false`) are optional. Set `"terminal": true` on the final event to publish the `.xes` log and run conformance checking.
+- `GET /api/traces` - View collected traces, `.xes` paths, and Process Doctor conformance verdicts.
+- `GET /api/traces/{vacancyId}/xes` - Download the generated `.xes` XML file.
 
 ### Configuration
 
-- `XES_OUTPUT_DIR` - Directory for generated `.xes` files (default: `data/xes`, `/data/xes` in Docker Compose mapped to `./xes-logs`).
-- `AUTO_CONFORMANCE_CHECK` - Set to `true` (default) to automatically run Process Doctor when a terminal event arrives, or `false` to only generate `.xes` logs for manual checking.
-- `DCR_MODEL_PATH` - Optional path to a custom DCR XML compliance model (overrides the bundled default `Full_Professor_Hiring_Compliance.dcr.xml`).
-- `PROCESS_DOCTOR_URL` - Target Process Doctor URL (default: `https://processdoctor.compute.dtu.dk/`).
+- `XES_OUTPUT_DIR` - Output directory for `.xes` files (default: `data/xes`, mapped to `./xes-logs` in Docker Compose).
+- `AUTO_CONFORMANCE_CHECK` - `true` (default) to check automatically on Process Doctor when a terminal event arrives, or `false` to only write `.xes` files.
+- `DCR_MODEL_PATH` - Optional path to override the bundled default `Full_Professor_Hiring_Compliance.dcr.xml`.
