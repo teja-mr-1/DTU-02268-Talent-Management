@@ -1,5 +1,6 @@
 package dk.dtu.applications.flink;
 
+import dk.dtu.applications.dcr.ScaleUpProcessState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,11 +18,18 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class RollingHour extends KeyedProcessFunction<String, Application, ApplicationReceived> {
+    private transient ScaleUpProcessState scaleUp;
+    private String inboxId;
+
+    public RollingHour() { this(new ScaleUpProcessState()); }
+    public RollingHour(ScaleUpProcessState scaleUp) { this.scaleUp = scaleUp; }
+    public RollingHour(String inboxId) { this.inboxId = inboxId; }
     private static final Logger log = LoggerFactory.getLogger(RollingHour.class);
     public static final OutputTag<ScaleUpRequested> SCALE_UP = new OutputTag<>("scale-up", org.apache.flink.api.common.typeinfo.TypeInformation.of(ScaleUpRequested.class));
     static final long HOUR = 3_600_000L;
     private transient ListState<Long> arrivals;
     @Override public void open(OpenContext context) {
+        if (inboxId != null) scaleUp = FlinkRegistry.scaleUpState(inboxId);
         arrivals = getRuntimeContext().getListState(new ListStateDescriptor<>("arrival-times", Long.class));
     }
     @Override public void processElement(Application application, Context context, Collector<ApplicationReceived> out) throws Exception {
@@ -32,7 +40,7 @@ public class RollingHour extends KeyedProcessFunction<String, Application, Appli
         arrivals.update(active);
         log.info("Application counted applicationId={} applicationsInLastHour={}", application.applicationId, active.size());
         out.collect(new ApplicationReceived(application, active.size()));
-        if (!wasAbove && active.size() > 5) {
+        if (!wasAbove && active.size() > 5 && scaleUp.simulationId() == null) {
             log.info("Scale-up threshold crossed applicationId={} applicationsInLastHour={}", application.applicationId, active.size());
             context.output(SCALE_UP, new ScaleUpRequested(application, active.size()));
         }

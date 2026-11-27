@@ -1,22 +1,21 @@
 package dk.dtu.applications.flink;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import dk.dtu.applications.ApplicationJob;
 import dk.dtu.applications.camunda.ApplicationReceivedSink;
-import dk.dtu.applications.camunda.ScaleUpRequestedSink;
+import dk.dtu.applications.dcr.ScaleUpRequestedSink;
 import dk.dtu.applications.model.ConformanceChecker;
 import jakarta.annotation.PreDestroy;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.ReadinessState;
 import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
+
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -34,7 +33,13 @@ final class EmbeddedFlink implements ApplicationRunner {
     private JobClient job;
     private volatile boolean stopping;
 
-    EmbeddedFlink(ApplicationInbox inbox, ApplicationContext context, ApplicationReceivedSink applicationSink, ScaleUpRequestedSink scaleUpSink, VacancyTraceStore traceStore, ConformanceChecker conformanceChecker) {
+    EmbeddedFlink(
+            ApplicationInbox inbox,
+            ApplicationContext context,
+            ApplicationReceivedSink applicationSink,
+            ScaleUpRequestedSink scaleUpSink,
+            VacancyTraceStore traceStore,
+            ConformanceChecker conformanceChecker) {
         this.inbox = inbox;
         this.context = context;
         this.applicationSink = applicationSink;
@@ -45,7 +50,7 @@ final class EmbeddedFlink implements ApplicationRunner {
 
     @Override public void run(ApplicationArguments args) throws Exception {
         log.info("Starting embedded Flink job");
-        inboxId = InboxRegistry.register(inbox);
+        inboxId = FlinkRegistry.register(inbox, scaleUpSink.state());
         runtimeId = RuntimeRegistry.register(traceStore, conformanceChecker);
         execution = ApplicationJob.create(inboxId, runtimeId, applicationSink, scaleUpSink);
         job = execution.executeAsync("Talent application intake");
@@ -68,7 +73,7 @@ final class EmbeddedFlink implements ApplicationRunner {
         } finally {
             try { if (execution != null) execution.close(); }
             finally {
-                if (inboxId != null) InboxRegistry.remove(inboxId);
+                if (inboxId != null) FlinkRegistry.remove(inboxId);
                 if (runtimeId != null) RuntimeRegistry.remove(runtimeId);
                 log.info("Embedded Flink resources released");
             }

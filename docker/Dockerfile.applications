@@ -5,12 +5,9 @@ COPY source/application-form/ /application-form/
 RUN ./gradlew --no-daemon clean build installDist
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+RUN mkdir -p /data/checkpoints /data/xes && chown -R 10001:10001 /app /data
 COPY --from=build /build/build/install/applications/ /app/
-ENV CHECKPOINT_DIRECTORY=file:///data/checkpoints \
-    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-RUN mkdir -p /data/checkpoints /data/xes /ms-playwright && \
-    java -cp "/app/lib/*" com.microsoft.playwright.CLI install chromium --with-deps && \
-    chown -R 10001:10001 /app /data /ms-playwright
+ENV CHECKPOINT_DIRECTORY=file:///data/checkpoints
 USER 10001:10001
 EXPOSE 8090
 ENTRYPOINT ["/app/bin/applications"]
