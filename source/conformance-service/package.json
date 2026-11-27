@@ -4,6 +4,7 @@
   "private": true,
   "description": "Lightweight DCR conformance checking service powered by DTU Process Doctor dcr-engine",
   "scripts": {
+    "prebuild": "node fetch-dcr-engine.mjs",
     "build": "tsc",
     "start": "node dist/server.js"
   },

@@ -1,8 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /build
-COPY source/conformance-service/package.json ./
-RUN npm install --no-audit --no-fund
-COPY source/conformance-service/tsconfig.json ./
+COPY source/conformance-service/package.json source/conformance-service/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY source/conformance-service/tsconfig.json source/conformance-service/fetch-dcr-engine.mjs ./
 COPY source/conformance-service/src ./src
 RUN npm run build && npm prune --omit=dev
 

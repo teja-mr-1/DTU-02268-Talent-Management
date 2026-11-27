@@ -35,3 +35,4 @@ source/flink-app/.gradle/
 xes-logs/
 source/conformance-service/node_modules/
 source/conformance-service/dist/
+source/conformance-service/src/dcr-engine/
