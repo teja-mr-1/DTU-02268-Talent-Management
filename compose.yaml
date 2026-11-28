@@ -14,12 +14,26 @@ services:
       DCR_PASSWORD: ${DCR_PASSWORD:-}
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       FLINK_LOG_LEVEL: ${FLINK_LOG_LEVEL:-WARN}
+      CONFORMANCE_SERVICE_URL: http://conformance:8091
     volumes:
       - application-checkpoints:/data
     depends_on:
       deploy-processes:
         condition: service_completed_successfully
     stop_grace_period: 40s
+
+  conformance:
+    image: talent-conformance:local
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.conformance
+    ports:
+      - "127.0.0.1:8091:8091"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8091/health > /dev/null"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   orchestration:
     image: camunda/camunda:8.8.43

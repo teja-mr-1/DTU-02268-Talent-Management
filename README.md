@@ -61,3 +61,17 @@ there is currently no completion/reset flow. Manager requests return HTTP 409 wh
 no simulation ID is available and HTTP 502 when DCR rejects or cannot receive an event.
 
 The application-received process continues to use Camunda.
+
+## 6. DCR conformance checking
+
+The `conformance` service (`source/conformance-service`, port `8091`) runs DTU Process
+Doctor's `dcr-engine` (`hugoalopez-dtu/dcr-js`, fetched at build time) over HTTP
+(`POST /check`, `GET /health`).
+
+In `source/flink-app`, inject `ConformanceChecker` and call `check(modelFile, logFile)`
+or `checkXml(modelXml, modelName, logXml, logName)`. The service URL comes from
+`CONFORMANCE_SERVICE_URL` (set in `compose.yaml`).
+Each XES event's `concept:name` and `role` attributes must match the DCR model's
+`description` and `role` attributes.
+
+Run tests with `cd source/conformance-service && npm test` and `cd source/flink-app && ./gradlew test`.

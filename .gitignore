@@ -32,3 +32,8 @@ source/flink-app/.gradle/
 /source/flink-app/data/
 /data/
 /.env
+
+# Node conformance service build artifacts & fetched dcr-engine sources
+source/conformance-service/node_modules/
+source/conformance-service/dist/
+source/conformance-service/src/dcr-engine/
