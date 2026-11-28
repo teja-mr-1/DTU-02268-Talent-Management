@@ -31,7 +31,7 @@ public final class ScaleUpRequestedSink implements Sink<ScaleUpRequested> {
     }
 
     @Override public SinkWriter<ScaleUpRequested> createWriter(WriterInitContext context) {
-        return new Writer(client, inboxId == null ? state : FlinkRegistry.scaleUpState(inboxId));
+        return new Writer(client, inboxId == null ? state : FlinkRegistry.getScaleUpState(inboxId));
     }
 
     private static class Writer implements SinkWriter<ScaleUpRequested> {

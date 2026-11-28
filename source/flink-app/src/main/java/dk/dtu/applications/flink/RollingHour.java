@@ -29,7 +29,7 @@ public class RollingHour extends KeyedProcessFunction<String, Application, Appli
     static final long HOUR = 3_600_000L;
     private transient ListState<Long> arrivals;
     @Override public void open(OpenContext context) {
-        if (inboxId != null) scaleUp = FlinkRegistry.scaleUpState(inboxId);
+        if (inboxId != null) scaleUp = FlinkRegistry.getScaleUpState(inboxId);
         arrivals = getRuntimeContext().getListState(new ListStateDescriptor<>("arrival-times", Long.class));
     }
     @Override public void processElement(Application application, Context context, Collector<ApplicationReceived> out) throws Exception {
