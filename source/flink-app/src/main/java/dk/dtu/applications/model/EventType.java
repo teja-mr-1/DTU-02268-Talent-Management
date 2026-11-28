@@ -1,7 +1,8 @@
 package dk.dtu.applications.model;
 
 public enum EventType {
-    APPLICATION(Application.class);
+    APPLICATION(Application.class),
+    DISTRIBUTION(Distribution.class);
 
     private final Class<?> payloadType;
     EventType(Class<?> payloadType) { this.payloadType = payloadType; }

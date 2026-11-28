@@ -39,11 +39,12 @@ DTU-02268-Talent-Management/
 With the applications service running, open `http://localhost:8090/manager.html`.
 The overview shows six hardcoded pending applications and counts by position.
 “Distribute applications” opens `/distribution.html`, where those same applications
-have fixed employee reviewers. “Confirm distribution” sends the proposed assignments.
+each have an employee dropdown. “Confirm distribution” sends the selected reviewers.
 
 The overview calls `GET /applications?status=pending`, executing DCR event `A1`
 and returning an empty JSON array. Confirmation calls `PUT /applications/distribute`,
-executing DCR event `A12` and returning HTTP 204. The UI still uses shared sample data.
+which queues the assignments and returns HTTP 202. Flink analyzes employee workloads
+before executing DCR event `A12`. The UI still uses shared sample data.
 The existing application form remains at `/index.html`.
 
 ## 5. DCR scale-up process

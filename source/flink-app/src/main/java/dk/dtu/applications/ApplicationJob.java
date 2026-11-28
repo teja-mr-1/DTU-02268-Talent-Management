@@ -1,9 +1,13 @@
 package dk.dtu.applications;
 
 import dk.dtu.applications.dcr.ScaleUpRequestedSink;
+import dk.dtu.applications.dcr.DistributionSink;
 import dk.dtu.applications.config.Settings;
 import dk.dtu.applications.flink.ApplicationSource;
+import dk.dtu.applications.flink.AssignmentWorkload;
+import dk.dtu.applications.flink.DuplicateApplications;
 import dk.dtu.applications.model.Application;
+import dk.dtu.applications.model.Distribution;
 import dk.dtu.applications.model.EventType;
 import org.apache.flink.api.connector.sink2.Sink;
 import dk.dtu.applications.model.ApplicationReceived;
@@ -20,7 +24,8 @@ import java.time.Duration;
 import java.nio.file.Path;
 
 public class ApplicationJob {
-    public static StreamExecutionEnvironment create(String inboxId, Sink<ApplicationReceived> applicationSink, ScaleUpRequestedSink scaleUpSink) {
+    public static StreamExecutionEnvironment create(String inboxId, Sink<ApplicationReceived> applicationSink,
+            ScaleUpRequestedSink scaleUpSink, DistributionSink distributionSink) {
         Configuration config = new Configuration();
         config.set(CoreOptions.DEFAULT_PARALLELISM, 1);
         config.set(CoreOptions.CLASSLOADER_RESOLVE_ORDER, "parent-first");
@@ -37,11 +42,20 @@ public class ApplicationJob {
 
         var outcomes = execution.fromSource(new ApplicationSource<>(inboxId, EventType.APPLICATION, Application.class), WatermarkStrategy.noWatermarks(), "Application inbox")
             .uid("applications-source")
+            .keyBy(DuplicateApplications::extractNameAndPositionKey)
+            .process(new DuplicateApplications()).name("Application duplicate check").uid("application-duplicate-check")
             .keyBy(value -> "all-applications")
             .process(new RollingHour(inboxId)).name("Rolling hour threshold").uid("rolling-hour");
         outcomes.sinkTo(applicationSink).name("Start application process").uid("camunda-start");
         outcomes.getSideOutput(RollingHour.SCALE_UP)
             .sinkTo(scaleUpSink.forInbox(inboxId)).name("Start scale-up process").uid("camunda-scale-up");
+
+        execution.fromSource(new ApplicationSource<>(inboxId, EventType.DISTRIBUTION, Distribution.class),
+                WatermarkStrategy.noWatermarks(), "Distribution inbox")
+            .uid("distribution-source")
+            .keyBy(distribution -> "all-distributions")
+            .process(new AssignmentWorkload()).name("Analyze assignment workload").uid("assignment-workload")
+            .sinkTo(distributionSink).name("Execute DCR distribution").uid("dcr-distribution");
 
         return execution;
     }

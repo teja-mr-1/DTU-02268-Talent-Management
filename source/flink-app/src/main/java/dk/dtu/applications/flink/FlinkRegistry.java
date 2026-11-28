@@ -25,13 +25,13 @@ public final class FlinkRegistry {
         return id;
     }
 
-    public static ScaleUpProcessState scaleUpState(String id) {
+    public static ScaleUpProcessState getScaleUpState(String id) {
         ScaleUpProcessState state = SCALE_UP_STATES.get(id);
         if (state == null) throw new IllegalStateException("Scale-up state not found for embedded runtime");
         return state;
     }
 
-    static ApplicationInbox get(String id) {
+    static ApplicationInbox getApplicationInbox(String id) {
         ApplicationInbox inbox = INBOXES.get(id);
         if (inbox == null) throw new IllegalStateException("Inbox not found; this source requires local embedded execution");
         return inbox;

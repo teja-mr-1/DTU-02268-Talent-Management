@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import dk.dtu.applications.ApplicationJob;
 import dk.dtu.applications.camunda.ApplicationReceivedSink;
 import dk.dtu.applications.dcr.ScaleUpRequestedSink;
+import dk.dtu.applications.dcr.DistributionSink;
 import jakarta.annotation.PreDestroy;
 import org.apache.flink.core.execution.JobClient;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -24,22 +25,25 @@ final class EmbeddedFlink implements ApplicationRunner {
     private final ApplicationContext context;
     private final ApplicationReceivedSink applicationSink;
     private final ScaleUpRequestedSink scaleUpSink;
+    private final DistributionSink distributionSink;
     private String inboxId;
     private StreamExecutionEnvironment execution;
     private JobClient job;
     private volatile boolean stopping;
 
-    EmbeddedFlink(ApplicationInbox inbox, ApplicationContext context, ApplicationReceivedSink applicationSink, ScaleUpRequestedSink scaleUpSink) {
+    EmbeddedFlink(ApplicationInbox inbox, ApplicationContext context, ApplicationReceivedSink applicationSink,
+            ScaleUpRequestedSink scaleUpSink, DistributionSink distributionSink) {
         this.inbox = inbox;
         this.context = context;
         this.applicationSink = applicationSink;
         this.scaleUpSink = scaleUpSink;
+        this.distributionSink = distributionSink;
     }
 
     @Override public void run(ApplicationArguments args) throws Exception {
         log.info("Starting embedded Flink job");
         inboxId = FlinkRegistry.register(inbox, scaleUpSink.state());
-        execution = ApplicationJob.create(inboxId, applicationSink, scaleUpSink);
+        execution = ApplicationJob.create(inboxId, applicationSink, scaleUpSink, distributionSink);
         job = execution.executeAsync("Talent application intake");
         log.info("Embedded Flink job submitted jobId={}", job.getJobID());
         job.getJobExecutionResult().whenComplete((result, failure) -> {

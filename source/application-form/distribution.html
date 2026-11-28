@@ -11,13 +11,15 @@
   <main>
     <nav aria-label="Breadcrumb"><a href="manager.html">Applications</a> / Distribution</nav>
     <p class="eyebrow">RECRUITMENT / DISTRIBUTION</p>
-    <h1>Review team assignments</h1>
-    <p class="intro">The six pending applications are assigned to three employees for an initial assessment.</p>
+    <h1>Assign applications</h1>
+    <p class="intro">Choose an employee to review each application, then confirm the distribution.</p>
+    <form id="distribution-form">
     <section class="panel">
-      <div class="panel-heading"><h2>Proposed distribution</h2><span class="badge">6 applications · 3 reviewers</span></div>
+      <div class="panel-heading"><h2>Employee assignments</h2></div>
       <div class="table-scroll"><table><caption class="sr-only">Application assignments to employee reviewers</caption><thead><tr><th>Application</th><th>Candidate</th><th>Position</th><th>Employee reviewer</th></tr></thead><tbody id="assignments"></tbody></table></div>
     </section>
-    <div class="actions"><p id="status" role="status" aria-live="polite"></p><button class="button" id="confirm" type="button">Confirm distribution</button></div>
+    <div class="actions"><p id="status" role="status" aria-live="polite"></p><button class="button" id="confirm" type="submit">Confirm distribution</button></div>
+    </form>
   </main>
   <script src="manager.js"></script>
 </body>
