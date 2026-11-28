@@ -21,28 +21,16 @@ public class ConformanceChecker {
     private static final Logger log = LoggerFactory.getLogger(ConformanceChecker.class);
 
     private final String serviceUrl;
-    private final Path defaultModelPath;
     private final Duration timeout;
 
     @Autowired
     public ConformanceChecker() {
-        this(
-                Settings.value("CONFORMANCE_SERVICE_URL", "http://127.0.0.1:8091"),
-                blankToNull(Settings.value("DCR_MODEL_PATH", "")),
-                Duration.ofSeconds(30));
+        this(Settings.value("CONFORMANCE_SERVICE_URL", "http://127.0.0.1:8091"), Duration.ofSeconds(30));
     }
 
-    ConformanceChecker(String serviceUrl, Path defaultModelPath, Duration timeout) {
+    ConformanceChecker(String serviceUrl, Duration timeout) {
         this.serviceUrl = serviceUrl;
-        this.defaultModelPath = defaultModelPath;
         this.timeout = timeout;
-    }
-
-    public ConformanceResult check(Path logFile) {
-        if (defaultModelPath == null) {
-            throw new IllegalStateException("Set DCR_MODEL_PATH or pass a DCR model file to check(modelFile, logFile)");
-        }
-        return check(defaultModelPath, logFile);
     }
 
     public ConformanceResult check(Path modelFile, Path logFile) {
@@ -87,11 +75,6 @@ public class ConformanceChecker {
         log.info("Conformance check log={} conformant={} structural={} time={}",
                 result.logName(), result.conformant(), result.totalStructuralViolations(), result.totalTimeViolations());
         return result;
-    }
-
-    private static Path blankToNull(String value) {
-        String trimmed = value == null ? "" : value.trim();
-        return trimmed.isEmpty() ? null : Path.of(trimmed);
     }
 
     private record CheckRequest(String modelXml, String logXml, String modelName, String logName) {}

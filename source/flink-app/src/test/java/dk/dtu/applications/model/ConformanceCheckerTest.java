@@ -41,8 +41,8 @@ class ConformanceCheckerTest {
             Files.writeString(log, "<log><trace><string key=\"concept:name\" value=\"VAC-1\"/></trace></log>");
 
             var checker = new ConformanceChecker(
-                    "http://127.0.0.1:" + server.getAddress().getPort(), model, Duration.ofSeconds(5));
-            ConformanceResult result = checker.check(log);
+                    "http://127.0.0.1:" + server.getAddress().getPort(), Duration.ofSeconds(5));
+            ConformanceResult result = checker.check(model, log);
 
             assertFalse(result.conformant());
             assertEquals("rules.dcr.xml", result.modelName());
@@ -57,11 +57,13 @@ class ConformanceCheckerTest {
     }
 
     @Test
-    void rejectsMissingFilesAndChecksConformantFlag(@TempDir Path tempDir) {
-        var checker = new ConformanceChecker("http://127.0.0.1:1", null, Duration.ofSeconds(2));
-        assertThrows(IllegalStateException.class, () -> checker.check(tempDir.resolve("a.xes")));
+    void rejectsMissingFilesAndChecksConformantFlag(@TempDir Path tempDir) throws Exception {
+        var checker = new ConformanceChecker("http://127.0.0.1:1", Duration.ofSeconds(2));
+        Path model = tempDir.resolve("rules.dcr.xml");
+        Files.writeString(model, "<dcr:definitions/>");
         assertThrows(IllegalArgumentException.class,
                 () -> checker.check(tempDir.resolve("missing.xml"), tempDir.resolve("a.xes")));
+        assertThrows(IllegalArgumentException.class, () -> checker.check(model, tempDir.resolve("missing.xes")));
         assertTrue(new ConformanceResult("m", "l", 1, 0, 0, 0, 0, "ok").conformant());
         assertFalse(new ConformanceResult("m", "l", 0, 0, 1, 1, 0, "bad").conformant());
     }

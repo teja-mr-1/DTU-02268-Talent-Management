@@ -15,14 +15,11 @@ services:
       APP_LOG_LEVEL: ${APP_LOG_LEVEL:-INFO}
       FLINK_LOG_LEVEL: ${FLINK_LOG_LEVEL:-WARN}
       CONFORMANCE_SERVICE_URL: http://conformance:8091
-      DCR_MODEL_PATH: ${DCR_MODEL_PATH:-}
     volumes:
       - application-checkpoints:/data
     depends_on:
       deploy-processes:
         condition: service_completed_successfully
-      conformance:
-        condition: service_healthy
     stop_grace_period: 40s
 
   conformance:

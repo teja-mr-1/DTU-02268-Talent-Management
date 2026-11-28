@@ -68,8 +68,9 @@ The `conformance` service (`source/conformance-service`, port `8091`) runs DTU P
 Doctor's `dcr-engine` (`hugoalopez-dtu/dcr-js`, fetched at build time) over HTTP
 (`POST /check`, `GET /health`).
 
-In `source/flink-app`, inject `ConformanceChecker` and call `check(modelFile, logFile)`,
-`check(logFile)` (using `DCR_MODEL_PATH`), or `checkXml(modelXml, modelName, logXml, logName)`.
+In `source/flink-app`, inject `ConformanceChecker` and call `check(modelFile, logFile)`
+or `checkXml(modelXml, modelName, logXml, logName)`. The service URL comes from
+`CONFORMANCE_SERVICE_URL` (set in `compose.yaml`).
 Each XES event's `concept:name` and `role` attributes must match the DCR model's
 `description` and `role` attributes.
 
